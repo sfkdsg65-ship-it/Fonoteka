@@ -873,13 +873,21 @@ function wishIndex(){
   return idx;}
 
 /* ---------- онлайн-поиск: Jamendo и Internet Archive ---------- */
-async function jamendoSearch(q){
-  const key=S.set.jamendo;if(!key)throw new Error('nokey');
-  const u='https://api.jamendo.com/v3.0/tracks/?client_id='+encodeURIComponent(key)+'&format=json&limit=20&imagesize=200&audiodlformat=mp32&audiodownload_allowed=true&search='+encodeURIComponent(q);
+async function jamendoQuery(key,extra){
+  const u='https://api.jamendo.com/v3.0/tracks/?client_id='+encodeURIComponent(key)+'&format=json&limit=30&imagesize=200&audiodlformat=mp32&order=popularity_total'+extra;
   const r=await fetch(u);if(!r.ok)throw new Error('http '+r.status);
   const j=await r.json();
-  if(j.headers&&j.headers.status==='failed')throw new Error(j.headers.error_message||'api');
-  return (j.results||[]).map(x=>({src:'jamendo',id:String(x.id),title:x.name,artist:x.artist_name,album:x.album_name,duration:x.duration,img:x.image,url:x.audiodownload||x.audio,page:x.shareurl||('https://www.jamendo.com/track/'+x.id),license:x.license_ccurl||''}));}
+  const h=j.headers||{};
+  if(h.status==='failed'||(h.code&&+h.code!==0))throw new Error(h.error_message||('api '+(h.code||'')));
+  return (j.results||[]).filter(x=>x.audiodownload_allowed!==false&&(x.audiodownload||x.audio));}
+async function jamendoSearch(q){
+  const key=S.set.jamendo;if(!key)throw new Error('nokey');
+  const e=encodeURIComponent(q);
+  let res=await jamendoQuery(key,'&search='+e);
+  if(!res.length)res=await jamendoQuery(key,'&namesearch='+e);
+  if(!res.length)res=await jamendoQuery(key,'&artist_name='+e);
+  if(!res.length&&!/\s/.test(q))res=await jamendoQuery(key,'&tags='+e);
+  return res.map(x=>({src:'jamendo',id:String(x.id),title:x.name,artist:x.artist_name,album:x.album_name,duration:x.duration,img:x.image,url:x.audiodownload||x.audio,page:x.shareurl||('https://www.jamendo.com/track/'+x.id),license:x.license_ccurl||''}));}
 async function archiveSearch(q){
   const u='https://archive.org/advancedsearch.php?q='+encodeURIComponent('('+q+') AND mediatype:audio')+'&fl[]=identifier&fl[]=title&fl[]=creator&rows=20&output=json';
   const r=await fetch(u);if(!r.ok)throw new Error('http '+r.status);
@@ -1187,7 +1195,7 @@ function filteredLib(){
   return ts;}
 function libList(){
   const ts=filteredLib();
-  return ts.length?listHtml(ts,'Библиотека'):`<p class="muted" style="text-align:center;padding:24px 0">Ничего не нашлось</p>`;}
+  return ts.length?listHtml(ts,'Библиотека'):`<p class="muted" style="text-align:center;padding:24px 0">Ничего не нашлось. Попробуйте английское слово (chill, piano, rock) или другой источник: русской музыки здесь мало.</p>`;}
 function plCover(ids){const t=ids.map(T).find(x=>x&&x.cover)||T(ids[0]);return t?cover(t):`<div class="cv" style="background:var(--surface2);color:var(--ink3)">${ic('note')}</div>`;}
 function groupRows(type){
   const m=groupBy(type==='album'?albumKey:artistKey);
@@ -1300,7 +1308,7 @@ function oRows(){
   if(o.busy)return `<p class="muted" style="text-align:center;padding:24px 0">Ищу…</p>`;
   if(o.err)return `<div class="card note-err">${esc(o.err)}</div>`;
   if(!o.res)return `<p class="muted" style="padding:6px 2px">Введите название или исполнителя. Здесь только музыка, которую авторы разрешили скачивать.</p>`;
-  if(!o.res.length)return `<p class="muted" style="text-align:center;padding:24px 0">Ничего не нашлось</p>`;
+  if(!o.res.length)return `<p class="muted" style="text-align:center;padding:24px 0">Ничего не нашлось. Попробуйте английское слово (chill, piano, rock) или другой источник: русской музыки здесь мало.</p>`;
   return `<div class="list">${o.res.map((r,i)=>{
     const d=o.dl[r.src+r.id]||{};
     const lab=d.state==='busy'?(d.p!=null?Math.round(d.p*100)+'%':'…'):d.state==='done'?'В библиотеке':d.state==='err'?'Повторить':'Скачать';
@@ -1591,7 +1599,7 @@ async function oSearch(){
   if(o.src==='jamendo'&&!S.set.jamendo){toast('Сначала введите ключ Jamendo');return;}
   o.busy=true;o.err='';refreshO();
   try{o.res=o.src==='jamendo'?await jamendoSearch(o.q):await archiveSearch(o.q);}
-  catch(e){o.res=null;o.err=netErr(e);}
+  catch(e){console.warn('online',e);o.res=null;o.err=netErr(e);}
   o.busy=false;refreshO();}
 const safeName=r=>((r.artist?r.artist+' - ':'')+r.title).replace(/[\\/:*?"<>|]+/g,' ').slice(0,100);
 async function doDl(r,key,f){
