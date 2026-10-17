@@ -1,4 +1,4 @@
-const V = 'fonoteka-v2';
+const V = 'fonoteka-v3';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
 const EXTRA_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdnjs.cloudflare.com'];
 
